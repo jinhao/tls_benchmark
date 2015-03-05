@@ -2,14 +2,18 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
+	//	"crypto/x509"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
+	//	"io"
+	//	"io/ioutil"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	log "seelog"
+	"time"
 )
 
 func checkError(err error) {
@@ -20,43 +24,71 @@ func checkError(err error) {
 }
 
 func do_reqs(addr string, reqs int, session_cache bool, ch chan int) {
-	cert2_b, _ := ioutil.ReadFile("cert2.pem")
-	priv2_b, _ := ioutil.ReadFile("cert2.key")
-	priv2, _ := x509.ParsePKCS1PrivateKey(priv2_b)
-
-	cert := tls.Certificate{
-		Certificate: [][]byte{cert2_b},
-		PrivateKey:  priv2,
-	}
-
 	//config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true, ClientSessionCache: tls.NewLRUClientSessionCache(32)}
-	config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true}
+	config := tls.Config{InsecureSkipVerify: true}
 	if session_cache {
 		config.ClientSessionCache = tls.NewLRUClientSessionCache(32)
 	}
+
+	tr := &http.Transport{
+		TLSClientConfig:    &config,
+		DisableCompression: true,
+		DisableKeepAlives:  true,
+		// TODO(jbd): Add dial timeout.
+		TLSHandshakeTimeout: time.Duration(6000) * time.Millisecond,
+		//Proxy:               http.ProxyURL(b.ProxyAddr),
+		Dial: func(netw, addr string) (net.Conn, error) {
+			lAddr, err := net.ResolveTCPAddr(netw, "172.16.30.3"+":0")
+			if err != nil {
+				return nil, err
+			}
+
+			rAddr, err := net.ResolveTCPAddr(netw, addr)
+			if err != nil {
+				return nil, err
+			}
+			conn, err := net.DialTCP(netw, lAddr, rAddr)
+			if err != nil {
+				return nil, err
+			}
+			deadline := time.Now().Add(35 * time.Second)
+			conn.SetDeadline(deadline)
+			return conn, nil
+		},
+	}
+	client := &http.Client{Transport: tr}
+	req, _ := http.NewRequest("GET", addr, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36")
+
 	for i := 0; i < reqs; i++ {
-		conn, err := tls.Dial("tcp", addr, &config)
-		if err != nil {
-			log.Errorf("client: dial: %s", err)
-			ch <- 1
-			return
-		}
-		defer conn.Close()
-
-		message := "GET / HTTP/1.1\r\n\r\n"
-		n, err := io.WriteString(conn, message)
-		if err != nil {
-			log.Errorf("client: write: %s %s", err, n)
-		}
-
-		reply := make([]byte, 256)
-		n, err = conn.Read(reply)
-		if err != nil {
-			log.Errorf("conn Read err:%s", err)
+		resp, err := client.Do(req)
+		if err == nil {
+			//size := resp.ContentLength
+			//code := resp.StatusCode
+			resp.Body.Close()
+		} else {
+			log.Warnf("client Do err:%s", err)
 		}
 
 	}
 	ch <- 1
+}
+
+func vip_operate(ip_prefix string, ip_num int, up bool) {
+	operate := "down"
+	if up {
+		operate = "up"
+	}
+	for i := 0; i < ip_num; i++ {
+		cmd_ip_up := fmt.Sprintf("ifconfig eth0:%d %s.%d netmask 255.255.255.0 %s", i, ip_prefix, i, operate)
+		cmd := exec.Command("/bin/sh", "-c", cmd_ip_up)
+		out, err := cmd.Output()
+		if err != nil {
+			fmt.Printf("err:%s\n", err)
+		} else {
+			log.Warnf("vip_operate | ifconfig %s.%d %s success, out:%s", ip_prefix, i, operate, out)
+		}
+	}
 }
 
 func main() {
@@ -66,7 +98,7 @@ func main() {
 
 	conn := flag.Int("c", 10, "connection num")
 	reqs := flag.Int("n", 100, "total num of requests(default 1000)")
-	server_addr := flag.String("s", "127.0.0.1:443", "server addr[default:127.0.0.1:443]")
+	server_addr := flag.String("s", "https://172.16.91.101:443/", "server addr[default:127.0.0.1:443]")
 	do_session_cache := flag.Bool("session-cache", false, "tls session cache[default false]")
 	//reqs_per_conn := 1 / 1;
 
@@ -84,6 +116,7 @@ func main() {
 	log.Warnf("main | n:%d", *reqs)
 	log.Warnf("main | server_addr:%s", *server_addr)
 	log.Warnf("main | reqs_p_c:%d", reqs_per_conn)
+	//vip_operate("172.16.30", 10, true)
 
 	ch := make(chan int, *conn)
 
