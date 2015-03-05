@@ -1,3 +1,6 @@
 [submodule "seelog"]
 	path = seelog
 	url = git@github.com:cihub/seelog.git
+[submodule "src/seelog"]
+	path = src/seelog
+	url = git@github.com:cihub/seelog.git
