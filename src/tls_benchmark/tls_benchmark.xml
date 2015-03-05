@@ -1,0 +1,10 @@
+<seelog type="sync" minlevel="trace">
+	<outputs formatid="main">
+        <file path="./log/tls_benchmark.log"/>
+        <console/>
+	</outputs>
+	<formats>
+		<format id="main" format="%Date/%Time [%LEV] %Msg%n"/>
+	</formats>
+</seelog>
+
