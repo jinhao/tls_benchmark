@@ -23,7 +23,7 @@ func checkError(err error) {
 	}
 }
 
-func do_reqs(addr string, reqs int, session_cache bool, ch chan int) {
+func do_reqs(addr string, local_ip string, reqs int, session_cache bool, ch chan int) {
 	//config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true, ClientSessionCache: tls.NewLRUClientSessionCache(32)}
 	cert2_b, _ := ioutil.ReadFile("cert2.pem")
 	/*priv2_b, _ := ioutil.ReadFile("cert2.key")
@@ -51,7 +51,7 @@ func do_reqs(addr string, reqs int, session_cache bool, ch chan int) {
 		TLSHandshakeTimeout: time.Duration(6000) * time.Millisecond,
 		//Proxy:               http.ProxyURL(b.ProxyAddr),
 		Dial: func(netw, addr string) (net.Conn, error) {
-			lAddr, err := net.ResolveTCPAddr(netw, "172.16.30.3"+":0")
+			lAddr, err := net.ResolveTCPAddr(netw, local_ip+":0")
 			if err != nil {
 				return nil, err
 			}
@@ -113,6 +113,7 @@ func main() {
 	reqs := flag.Int("n", 100, "total num of requests(default 1000)")
 	server_addr := flag.String("s", "https://172.16.91.101:443/", "server addr[default:127.0.0.1:443]")
 	do_session_cache := flag.Bool("session-cache", false, "tls session cache[default false]")
+	vip_prefix := flag.String("vp", "172.16.30", "vip profix")
 	//reqs_per_conn := 1 / 1;
 
 	flag.Parse()
@@ -129,16 +130,24 @@ func main() {
 	log.Warnf("main | n:%d", *reqs)
 	log.Warnf("main | server_addr:%s", *server_addr)
 	log.Warnf("main | reqs_p_c:%d", reqs_per_conn)
-	//vip_operate("172.16.30", 10, true)
+	vip_num := 200
+	if *conn < 200 {
+		vip_num = *conn
+	}
+	vip_operate(*vip_prefix, vip_num, true)
 
 	ch := make(chan int, *conn)
 
 	for i := 0; i < *conn; i++ {
-		go do_reqs(*server_addr, reqs_per_conn, *do_session_cache, ch)
+		ip_index := i % 200
+		ip := fmt.Sprintf("%s.%d", *vip_prefix, ip_index)
+		log.Warnf("main | ip:%s", ip)
+		go do_reqs(*server_addr, ip, reqs_per_conn, *do_session_cache, ch)
 	}
 
 	for i := 0; i < *conn; i++ {
 		<-ch
 		log.Warnf("main | recv %d chan", i)
 	}
+	vip_operate("172.16.30", vip_num, false)
 }
