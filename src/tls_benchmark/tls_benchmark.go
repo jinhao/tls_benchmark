@@ -25,7 +25,7 @@ func checkError(err error) {
 
 func do_reqs(addr string, local_ip string, reqs int, session_cache bool, ch chan int) {
 	//config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true, ClientSessionCache: tls.NewLRUClientSessionCache(32)}
-	cert2_b, _ := ioutil.ReadFile("cert2.pem")
+	cert2_b, _ := ioutil.ReadFile("ca.crt")
 	/*priv2_b, _ := ioutil.ReadFile("cert2.key")
 	priv2, _ := x509.ParsePKCS1PrivateKey(priv2_b)
 
