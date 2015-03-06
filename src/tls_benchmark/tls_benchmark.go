@@ -2,11 +2,11 @@ package main
 
 import (
 	"crypto/tls"
-	//	"crypto/x509"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	//	"io"
-	//	"io/ioutil"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -25,7 +25,20 @@ func checkError(err error) {
 
 func do_reqs(addr string, reqs int, session_cache bool, ch chan int) {
 	//config := tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: true, ClientSessionCache: tls.NewLRUClientSessionCache(32)}
-	config := tls.Config{InsecureSkipVerify: true}
+	cert2_b, _ := ioutil.ReadFile("cert2.pem")
+	/*priv2_b, _ := ioutil.ReadFile("cert2.key")
+	priv2, _ := x509.ParsePKCS1PrivateKey(priv2_b)
+
+	cert := tls.Certificate{
+		Certificate: [][]byte{cert2_b},
+		PrivateKey:  priv2,
+	}
+	*/
+	cert, err := x509.ParseCertificate(cert2_b)
+	checkError(err)
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(cert)
+	config := tls.Config{InsecureSkipVerify: false, RootCAs: rootCAs}
 	if session_cache {
 		config.ClientSessionCache = tls.NewLRUClientSessionCache(32)
 	}
