@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	//	"io"
+	"encoding/pem"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -34,7 +35,10 @@ func do_reqs(addr string, local_ip string, reqs int, session_cache bool, ch chan
 		PrivateKey:  priv2,
 	}
 	*/
-	cert, err := x509.ParseCertificate(cert2_b)
+	//cert_str := string(cert2_b)
+	//s, _ := hex.DecodeString(cert_str)
+	s, _ := pem.Decode(cert2_b)
+	cert, err := x509.ParseCertificate(s.Bytes)
 	checkError(err)
 	rootCAs := x509.NewCertPool()
 	rootCAs.AddCert(cert)
